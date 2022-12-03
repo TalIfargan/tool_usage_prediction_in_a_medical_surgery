@@ -1,6 +1,6 @@
 predictions/
 P016_tissue1_6639.jpg
-P022_balloon1.wmv
+videos/P022_balloon1.wmv
 traced_model.pt
 */__pycache__/*
 **/__pycache__/*
@@ -24,3 +24,4 @@ traced_model.pt
 *.spec
 *.sdist
 *.tar
+/model_output/P022_balloon1/*/*.txt
