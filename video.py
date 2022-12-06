@@ -6,7 +6,9 @@ import bbox_visualizer as bbv
 import argparse
 import glob
 
-HISTORY_LENGTH = 20
+HISTORY_LENGTH = 30
+# [current_frame, frame[n-1], ...]
+T = np.exp(-np.arange(HISTORY_LENGTH))
 
 TOOL_NAMING = {'0': 'Scissors',
                '1': 'Scissors',
@@ -16,6 +18,11 @@ TOOL_NAMING = {'0': 'Scissors',
                '5': 'Forceps',
                '6': 'Empty',
                '7': 'Empty'}
+
+NAME_FROM_TOOL = {'T3': 'Scissors',
+                  'T1': 'Needle_driver',
+                  'T2': 'Forceps',
+                  'T0': 'Empty'}
 
 TOOL_CONVERTER = {'0': 'T3',
                   '1': 'T3',
@@ -34,8 +41,6 @@ LABEL_DICT = {'0': 0,
               '5': 0,
               '6': 0,
               '7': 0}
-
-T = [3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1]
 
 
 def save_all_images(save_path, video_path):
@@ -58,6 +63,13 @@ def save_all_images(save_path, video_path):
             break
     cap.release()
     cv2.destroyAllWindows()
+
+
+def extract_gt_file(gt_file):
+    with open(gt_file) as file:
+        usage = [line.rstrip().split() for line in file]
+        usage = [(line[0].strip(), line[1].strip(), line[2].strip()) for line in usage]
+        return usage
 
 
 def extract_labels_and_bbox(labels_file):
@@ -87,23 +99,43 @@ def predict_tool(history):
 
 def record_tool(save_path, tool, start_time, end_time):
     with open(save_path, 'a') as f:
-        f.write(f'{start_time} {end_time}, {TOOL_CONVERTER[tool]}\n')
+        f.write(f'{start_time} {end_time} {TOOL_CONVERTER[tool]}\n')
 
 
-def write_frame(video_name, file, bbox_left, bbox_right, label_left, label_right):
+def get_gt_tools(gt_left, gt_right, frame_idx):
+    left_gt_label, right_gt_label = None, None
+    for record in gt_left:
+        if int(record[0]) <= frame_idx <= int(record[1]):
+            left_gt_label = record[2]
+            break
+    for record in gt_right:
+        if int(record[0]) <= frame_idx <= int(record[1]):
+            right_gt_label = record[2]
+            break
+    return NAME_FROM_TOOL[left_gt_label], NAME_FROM_TOOL[right_gt_label]
+
+
+def write_frame(video_name, file, bbox_left, bbox_right, label_left, label_right, gt_left, gt_right, frame_idx):
     frame = cv2.imread(os.path.join('video_frames', video_name, Path(file).stem + '.jpg'))
+    left_gt_label, right_gt_label = get_gt_tools(gt_left, gt_right, frame_idx)
+    manually_up = np.array([0, -70, 0, 0])
+    manually_left = np.array([-30, 0, 0, 0])
+    manually_right = np.array([30, 0, 0, 0])
     if bbox_left:
         bbox_left = [float(num) for num in bbox_left]
         bbox_left = [int((bbox_left[0]-0.5*bbox_left[2])*frame.shape[1]), int((bbox_left[1]-0.5*bbox_left[3])*frame.shape[0]),
                      int((bbox_left[0]+0.5*bbox_left[2])*frame.shape[1]), int((bbox_left[1]+0.5*bbox_left[3])*frame.shape[0])]
-        frame = bbv.draw_rectangle(frame, bbox_left, bbox_color=(255,0,0))
+        frame = bbv.draw_rectangle(frame, bbox_left, bbox_color=(255, 0, 0))
         frame = bbv.add_label(frame, f'L_{TOOL_NAMING[label_left]}', bbox_left, top=True)
+        frame = bbv.add_label(frame, 'GT: ' + left_gt_label, bbox_left+manually_up, top=False, text_color=(255, 0, 0))
+        #frame = bbv.draw_rectangle(frame, bbox_left+manually_up, bbox_color=(0,0,0))
     if bbox_right:
         bbox_right = [float(num) for num in bbox_right]
         bbox_right = [int((bbox_right[0] - 0.5 * bbox_right[2]) * frame.shape[1]), int((bbox_right[1] - 0.5 * bbox_right[3]) * frame.shape[0]),
                      int((bbox_right[0] + 0.5 * bbox_right[2]) * frame.shape[1]), int((bbox_right[1] + 0.5 * bbox_right[3]) * frame.shape[0])]
-        frame = bbv.draw_rectangle(frame, bbox_right, bbox_color=(0,255,0))
+        frame = bbv.draw_rectangle(frame, bbox_right, bbox_color=(0, 255, 0))
         frame = bbv.add_label(frame, f'R_{TOOL_NAMING[label_right]}', bbox_right, top=True)
+        frame = bbv.add_label(frame, 'GT: ' + right_gt_label, bbox_right+manually_up, top=False, text_color=(0,255,0))
     cv2.imwrite(os.path.join('model_output', video_name, 'labeled_images', Path(file).stem + '.jpg'), frame)
 
 
@@ -131,7 +163,7 @@ def image_seq_to_video(imgs_path, output_path='./video.mp4', fps=30.0):
     print("saved video @ ", output)
 
 
-def predict_tool_usage(labels_path, output_path, write_video, video_name):
+def predict_tool_usage(labels_path, output_path, write_video, video_name, left_gt_path, right_gt_path):
     if 'left' not in os.listdir(output_path):
         os.mkdir(os.path.join(output_path, 'left'))
     if 'right' not in os.listdir(output_path):
@@ -139,11 +171,14 @@ def predict_tool_usage(labels_path, output_path, write_video, video_name):
     save_path_left = os.path.join(output_path, 'left', 'predictions.txt')
     save_path_right = os.path.join(output_path, 'right', 'predictions.txt')
     pred_files = sorted(os.listdir(labels_path))
+    gt_left, gt_right = extract_gt_file(left_gt_path), extract_gt_file(right_gt_path)
     first_file = os.path.join(labels_path, pred_files[0])
     start_frame_left = 0
     start_frame_right = 0
     current_tool_left, current_tool_right, bbox_left, bbox_right = extract_labels_and_bbox(first_file)
     smoothed_tool_left, smoothed_tool_right = current_tool_left, current_tool_right
+    if write_video:
+        write_frame(video_name, pred_files[0], bbox_left, bbox_right, current_tool_left, smoothed_tool_left, gt_left, gt_right, 0)
     left_history = [current_tool_left]
     right_history = [current_tool_right]
     for i, file in enumerate(pred_files[1:]):
@@ -154,12 +189,15 @@ def predict_tool_usage(labels_path, output_path, write_video, video_name):
         pred_left = predict_tool(left_history)
         pred_right = predict_tool(right_history)
         if write_video:
-            write_frame(video_name, file, bbox_left, bbox_right, pred_left, pred_right)
-        if pred_left != smoothed_tool_left or i == len(pred_files)-2:
+            write_frame(video_name, file, bbox_left, bbox_right, pred_left, pred_right, gt_left, gt_right, i+1)
+        if i == len(pred_files)-2:
+            record_tool(save_path_left, smoothed_tool_left, start_frame_left, i+1) #unique case
+            record_tool(save_path_right, smoothed_tool_right, start_frame_right, i+1)
+        if pred_left != smoothed_tool_left:
             record_tool(save_path_left, smoothed_tool_left, start_frame_left, i)  # i because enumeration is different from indexing
             smoothed_tool_left = pred_left
             start_frame_left = i + 1
-        if pred_right != smoothed_tool_right or i == len(pred_files)-2:
+        if pred_right != smoothed_tool_right:
             record_tool(save_path_right, smoothed_tool_right, start_frame_right, i)
             smoothed_tool_right = pred_right
             start_frame_right = i+1
@@ -172,6 +210,8 @@ def run_inference(video_args):
     video_name = Path(video_args.video_path).stem
     if video_args.video_frames_path not in os.listdir():
         os.mkdir(video_args.video_frames_path)
+    if video_name not in os.listdir(os.path.join(video_args.video_frames_path)):
+        os.mkdir(os.path.join(video_args.video_frames_path, video_name))
     save_path = os.path.join(video_args.video_frames_path, video_name)
 
     # saving all frames
@@ -196,7 +236,7 @@ def run_inference(video_args):
             infer_all = input()
         if infer_all.lower() == 'y':
             print(f'doing inference for all frames of {video_name} video')
-            os.system(f'python predict.py --source {save_path} --weights weights/best.pt --nosave --save-txt --project model_output --name {video_name} --save-conf --smooth_tool')
+            os.system(f'python predict.py --source {save_path} --weights weights/best.pt --nosave --save-txt --project model_output --name {video_name} --save-conf')
 
     # running tool usage prediction using model's outputs
     if video_args.predict_tools:
@@ -205,7 +245,9 @@ def run_inference(video_args):
         if 'labeled_images' not in os.listdir(os.path.join('model_output', video_name)):
             os.mkdir(os.path.join('model_output', video_name, 'labeled_images'))
         predict_tool_usage(os.path.join('model_output', video_name, 'labels'),
-                           os.path.join('model_output', video_name, 'tool_usage_prediction'), video_args.write_video, video_name)
+                           os.path.join('model_output', video_name, 'tool_usage_prediction'),
+                           video_args.write_video, video_name, video_args.left_gt_path,
+                           video_args.right_gt_path)
 
     # saving updated video
 
@@ -219,5 +261,7 @@ if __name__ == '__main__':
     parser.add_argument('--infer_images', action='store_true', help='doing inference for all images or not')
     parser.add_argument('--predict_tools', action='store_true', help='produce a tool prediction file or not')
     parser.add_argument('--write_video', action='store_true', help='produce a video with the predictions')
+    parser.add_argument('--left_gt_path', help='path to gt tool usage file of the left hand')
+    parser.add_argument('--right_gt_path', help='path to gt tool usage file of the right hand')
     video_args = parser.parse_args()
     run_inference(video_args)

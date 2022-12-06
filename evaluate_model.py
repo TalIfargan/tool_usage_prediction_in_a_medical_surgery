@@ -95,9 +95,9 @@ def evaluate_model(gt_path, predictions_path, iou_threshold):
 
 if __name__ == "__main__":
     # evaluate model
-    results_25 = evaluate_model("/home/student/CVSA_HW1/CVSA/test/labels", "/home/student/CVSA_HW1/CVSA/test/predictions", 0.25)
-    results_50 = evaluate_model("/home/student/CVSA_HW1/CVSA/test/labels", "/home/student/CVSA_HW1/CVSA/test/predictions", 0.5)
-    results_75 = evaluate_model("/home/student/CVSA_HW1/CVSA/test/labels", "/home/student/CVSA_HW1/CVSA/test/predictions", 0.75)
+    results_25 = evaluate_model("test/labels", "test/predictions", 0.25)
+    results_50 = evaluate_model("test/labels", "test/predictions", 0.5)
+    results_75 = evaluate_model("test/labels", "test/predictions", 0.75)
     # create dataframe
     results_df = pd.DataFrame([results_25, results_50, results_75])
     results_df.index = ['IoU = 0.25', 'IoU = 0.5', 'IoU = 0.75']
