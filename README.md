@@ -36,8 +36,10 @@ Example:
 python evaluate_tool_usage.py --pred_file_path_left model_output/P022_balloon1/tool_usage_prediction/left/predictions_exp.txt --pred_file_path_right model_output/P022_balloon1/tool_usage_prediction/right/predictions_exp.txt --gt_file_path_left tools_gt/tools_left/P022_balloon1.txt --gt_file_path_right tools_gt/tools_right/P022_balloon1.txt --video_name P022_balloon1 --smoothing_method exp
 ```
 
-This will produce an evaluating file including all metrics, for example:
-![alt text](http://url/to/img.png)
+This will produce an evaluating txt file including all metrics, for example:
+<p align="center">
+  <img src="https://github.com/TalIfargan/CVSA_HW1/blob/master/metrics_example.png" />
+</p>
 
-
+After producing all evaluation files, in our case 3 smoothing methods for any video (total of 15 files), we can run mean_calculator.py to get our final results, which are the mean metric over the videos for each desired metric.
 
