@@ -101,4 +101,6 @@ if __name__ == "__main__":
     # create dataframe
     results_df = pd.DataFrame([results_25, results_50, results_75])
     results_df.index = ['IoU = 0.25', 'IoU = 0.5', 'IoU = 0.75']
+    results_df.to_csv('evaluate_model_results.csv')
     print(results_df)
+    print('results saved to \"evaluate_model_results.csv\"')

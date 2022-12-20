@@ -1,6 +1,27 @@
 # CVSA_HW1
 This git repository can be used to produce and evaluate end to end tool usage prediction in a medical surgery, given a video of it.
 
+## Image Pipeline
+Given an image, we can run `predict.py` with the appropriate parameters to produce the following outputs:
+* `.txt` file with the `(class, x, y, w, h, conf)` results, this file is created inside a `<name>/labels/` folder 
+* Annotated image with the boundings boxes
+
+Both of those will be created using the fine-tuned YOLOV7 we have trained, by loading the best weights from training and running an inference over the given image\frame.
+To see the available parameters available use:
+```
+python predict.py --help
+```
+from the project directory.
+Actually dealing with these parameters is not really neccesery, **just use the example**.
+
+### Example
+```
+python predict.py --weights weights\best.pt --source path\to\img.jpg --save-txt --save-conf --name NAME-OF-FOLDER
+```
+Where:
+* `path\to\img.jpg` is the path to the image you are trying to annotate
+* `NAME-OF-FOLDER` is the name of the folder in which the prediction `.txt` file and the annotated image are saved
+
 ## Video Pipeline
 Given a video, we can run video.py with the appropriate parameters to produce the following outputs:
 * Fine-tuned YOLOV7 outputs per frame.
@@ -29,7 +50,14 @@ Running this bash command assumes a video is saved under videos/P022_balloon1.wm
 
 The running will also produce the model's raw outputs for each frame (before smoothing) in model_output/P022_bolloon1/labels and the labeled video frames in model_output/P022_bolloon1/labeled_images. 
 
-## Tool usage evaluation
+## Detection Model Evaluation
+In order to evaluate the trained model on the test set use:
+```
+python evaluate_model.py
+```
+This will create a dataframe consisting the AP@k and mAP@k for each class, for each k in {25,50,75} as requested, print it and save it.
+
+## Tool Usage Evaluation
 Given our tool usage predictions for each hand per frame and the corresponding ground-truth, we can run evaluate_tool_usage.py to get the desired evaluation metrics.
 Example:
 ```bash
