@@ -173,6 +173,10 @@ def predict_tool_usage(labels_path, output_path, write_video, video_name, left_g
         os.mkdir(os.path.join(output_path, 'right'))
     save_path_left = os.path.join(output_path, 'left', f'predictions_{smoothing_method}.txt')
     save_path_right = os.path.join(output_path, 'right', f'predictions_{smoothing_method}.txt')
+    if os.path.isfile(save_path_left):
+        os.remove(save_path_left)
+    if os.path.isfile(save_path_right):
+        os.remove(save_path_right)
     pred_files = sorted(os.listdir(labels_path))
     gt_left, gt_right = extract_gt_file(left_gt_path), extract_gt_file(right_gt_path)
     first_file = os.path.join(labels_path, pred_files[0])
@@ -223,7 +227,7 @@ def run_inference(video_args):
         # making sure the frames are not already saved
         save_all = 'y'
         if os.listdir(save_path):
-            print('frame save path may not be empty. Are you sure you wish to save all images? (y/n)')
+            print('frame save path may be not empty. Are you sure you wish to save all images? (y/n)')
             save_all = input()
         if save_all.lower() == 'y':
             print(f'reading and saving all the frames of {video_name} video')
@@ -231,6 +235,8 @@ def run_inference(video_args):
 
     # running inference for all frames
     if video_args.infer_images:
+        if 'model_output' not in os.listdir():
+            os.mkdir('model_output')
         if video_name not in os.listdir('model_output'):
             os.mkdir(os.path.join('model_output', video_name))
         # making sure the inference is needed
