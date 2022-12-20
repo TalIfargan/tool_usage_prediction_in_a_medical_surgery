@@ -7,8 +7,11 @@ import argparse
 import glob
 
 HISTORY_LENGTH = 30
-# [current_frame, frame[n-1], ...]
-T = np.exp(-np.arange(HISTORY_LENGTH))
+
+T = {'mean': [1]*HISTORY_LENGTH,
+     'exp': np.exp(-0.1*np.arange(HISTORY_LENGTH)),
+     'none': [1]+[0]*(HISTORY_LENGTH-1)}
+
 
 TOOL_NAMING = {'0': 'Scissors',
                '1': 'Scissors',
@@ -90,10 +93,10 @@ def extract_labels_and_bbox(labels_file):
     return left_label.strip(), right_label.strip(), bbox_left, bbox_right
 
 
-def predict_tool(history):
+def predict_tool(history, smoothing_method):
     label_dict = LABEL_DICT.copy()
     for i, label in enumerate(history[::-1]):
-        label_dict[label] += T[i]
+        label_dict[label] += T[smoothing_method][i]
     return max(label_dict, key=label_dict.get)
 
 
@@ -163,13 +166,13 @@ def image_seq_to_video(imgs_path, output_path='./video.mp4', fps=30.0):
     print("saved video @ ", output)
 
 
-def predict_tool_usage(labels_path, output_path, write_video, video_name, left_gt_path, right_gt_path):
+def predict_tool_usage(labels_path, output_path, write_video, video_name, left_gt_path, right_gt_path, smoothing_method):
     if 'left' not in os.listdir(output_path):
         os.mkdir(os.path.join(output_path, 'left'))
     if 'right' not in os.listdir(output_path):
         os.mkdir(os.path.join(output_path, 'right'))
-    save_path_left = os.path.join(output_path, 'left', 'predictions.txt')
-    save_path_right = os.path.join(output_path, 'right', 'predictions.txt')
+    save_path_left = os.path.join(output_path, 'left', f'predictions_{smoothing_method}.txt')
+    save_path_right = os.path.join(output_path, 'right', f'predictions_{smoothing_method}.txt')
     pred_files = sorted(os.listdir(labels_path))
     gt_left, gt_right = extract_gt_file(left_gt_path), extract_gt_file(right_gt_path)
     first_file = os.path.join(labels_path, pred_files[0])
@@ -184,10 +187,10 @@ def predict_tool_usage(labels_path, output_path, write_video, video_name, left_g
     for i, file in enumerate(pred_files[1:]):
         current_tool_left, current_tool_right, bbox_left, bbox_right = extract_labels_and_bbox(os.path.join(labels_path, file))
         # Note - if no prediction for hand - ignore and predict previous one
-        left_history = left_history[-(HISTORY_LENGTH-1):] + [current_tool_left] if current_tool_left else  left_history
-        right_history = right_history[-(HISTORY_LENGTH-1):] + [current_tool_right] if current_tool_right else  right_history
-        pred_left = predict_tool(left_history)
-        pred_right = predict_tool(right_history)
+        left_history = left_history[-(HISTORY_LENGTH)+1:] + [current_tool_left] if current_tool_left else  left_history
+        right_history = right_history[-(HISTORY_LENGTH)+1:] + [current_tool_right] if current_tool_right else  right_history
+        pred_left = predict_tool(left_history, smoothing_method)
+        pred_right = predict_tool(right_history, smoothing_method)
         if write_video:
             write_frame(video_name, file, bbox_left, bbox_right, pred_left, pred_right, gt_left, gt_right, i+1)
         if i == len(pred_files)-2:
@@ -202,8 +205,9 @@ def predict_tool_usage(labels_path, output_path, write_video, video_name, left_g
             smoothed_tool_right = pred_right
             start_frame_right = i+1
     # write final video
-    image_seq_to_video(os.path.join('model_output', video_name, 'labeled_images'),
-                       output_path=os.path.join('model_output', video_name, 'labeled_video.mp4'), fps=30.0)
+    if write_video:
+        image_seq_to_video(os.path.join('model_output', video_name, 'labeled_images'),
+                           output_path=os.path.join('model_output', video_name, 'labeled_video.mp4'), fps=30.0)
 
 def run_inference(video_args):
     # making sure desired paths exist
@@ -219,7 +223,7 @@ def run_inference(video_args):
         # making sure the frames are not already saved
         save_all = 'y'
         if os.listdir(save_path):
-            print('frame save path is not empty. Are you sure you wish to save all images? (y/n)')
+            print('frame save path may not be empty. Are you sure you wish to save all images? (y/n)')
             save_all = input()
         if save_all.lower() == 'y':
             print(f'reading and saving all the frames of {video_name} video')
@@ -236,7 +240,7 @@ def run_inference(video_args):
             infer_all = input()
         if infer_all.lower() == 'y':
             print(f'doing inference for all frames of {video_name} video')
-            os.system(f'python predict.py --source {save_path} --weights weights/best.pt --nosave --save-txt --project model_output --name {video_name} --save-conf')
+            os.system(f'python predict.py --source {save_path} --weights weights/best.pt --nosave --save-txt --project model_output --name {video_name} --save-conf --exist-ok')
 
     # running tool usage prediction using model's outputs
     if video_args.predict_tools:
@@ -244,10 +248,12 @@ def run_inference(video_args):
             os.mkdir(os.path.join('model_output', video_name, 'tool_usage_prediction'))
         if 'labeled_images' not in os.listdir(os.path.join('model_output', video_name)):
             os.mkdir(os.path.join('model_output', video_name, 'labeled_images'))
+        if 'labels' not in os.listdir(os.path.join('model_output', video_name)):
+            os.mkdir(os.path.join('model_output', video_name, 'labels'))
         predict_tool_usage(os.path.join('model_output', video_name, 'labels'),
                            os.path.join('model_output', video_name, 'tool_usage_prediction'),
                            video_args.write_video, video_name, video_args.left_gt_path,
-                           video_args.right_gt_path)
+                           video_args.right_gt_path, video_args.smoothing_method)
 
     # saving updated video
 
@@ -263,5 +269,6 @@ if __name__ == '__main__':
     parser.add_argument('--write_video', action='store_true', help='produce a video with the predictions')
     parser.add_argument('--left_gt_path', help='path to gt tool usage file of the left hand')
     parser.add_argument('--right_gt_path', help='path to gt tool usage file of the right hand')
+    parser.add_argument('--smoothing_method', default='none', help='mean, exp or none, will be as a part of the predictions txt file')
     video_args = parser.parse_args()
     run_inference(video_args)
