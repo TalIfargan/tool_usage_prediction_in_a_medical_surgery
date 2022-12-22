@@ -29,26 +29,26 @@ Given a video, we can run video.py with the appropriate parameters to produce th
 * Labled video - condtaining the final prediction and the ground-truth for each frame.
 
 The run parameters are:
-* video_path
-* left_gt_path
-* right_gt_path
-* smoothing_method - can be 'none','mean' or 'exp'
+* `video_path`
+* `left_gt_path`
+* `right_gt_path`
+* `smoothing_method` - can be 'none','mean' or 'exp'
 
 The following parameters are Boolean and exist to enable running only some of the modules, especially for debugging:
-* save_images - whether or not saving the video frames
-* infer_images - whether or not running the YOLOV7 model one the video frames
-* predict_tools - whether or not making a final prediction per hand per frame
-* write_video - whether or not writing the video
+* `save_images` - whether or not saving the video frames
+* `infer_images` - whether or not running the YOLOV7 model one the video frames
+* `predict_tools` - whether or not making a final prediction per hand per frame
+* `write_video` - whether or not writing the video
 
 ### Example
 ```bash
 python video.py --video_path videos/P022_balloon1.wmv --left_gt_path tools_gt/tools_left/P022_balloon1.txt --right_gt_path tools_gt/tools_right/P022_balloon1.txt --smoothing_method exp --save_images --infer_images --predict_tools --write_video
 ```
 Running this bash command assumes a video is saved under videos/P022_balloon1.wmv, its main outputs are:
-* Video - the labeled video will be located in model_output/P022_bolloon1/labeled_video.mp4
-* Tool usage predictions files - will be located in model_output/P022_bolloon1/tool_usage_prediction/left/predictions_exp.txt (and the same way for the right hand)
+* Video - the labeled video will be located in `model_output/P022_bolloon1/labeled_video.mp4`
+* Tool usage predictions files - will be located in `model_output/P022_bolloon1/tool_usage_prediction/left/predictions_exp.txt` (and the same way for the right hand)
 
-The running will also produce the model's raw outputs for each frame (before smoothing) in model_output/P022_bolloon1/labels and the labeled video frames in model_output/P022_bolloon1/labeled_images. 
+The running will also produce the model's raw outputs for each frame (before smoothing) in model_output/P022_bolloon1/labels and the labeled video frames in `model_output/P022_bolloon1/labeled_images`.
 
 ## Detection Model Evaluation
 In order to evaluate the trained model on the test set use:
@@ -69,5 +69,5 @@ This will produce an evaluating txt file including all metrics, for example:
   <img src="https://github.com/TalIfargan/CVSA_HW1/blob/master/metrics_example.png" />
 </p>
 
-After producing all evaluation files, in our case 3 smoothing methods for any video (total of 15 files), we can run mean_calculator.py to get our final results, which are the mean metric over the videos for each desired metric.
+After producing all evaluation files, in our case 3 smoothing methods for any video (total of 15 files), we can run `mean_calculator.py` to get our final results, which are the mean metric over the videos for each desired metric.
 
