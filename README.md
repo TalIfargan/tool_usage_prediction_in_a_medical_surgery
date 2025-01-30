@@ -1,4 +1,4 @@
-# CVSA_HW1
+# Tool Usage Prediction in a Medical Surgery
 This git repository can be used to produce and evaluate end to end tool usage prediction in a medical surgery, given a video of it.
 
 ## Image Pipeline
